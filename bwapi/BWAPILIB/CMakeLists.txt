@@ -33,7 +33,7 @@ set(BWAPILIB_SRCS
   Source/WeaponType.cpp
 )
 
-if (WIN32)
+if (WIN32 OR OPENBWAPI_BUILD_STATIC_LIBS)
   add_library(BWAPILIB STATIC
     ${BWAPILIB_SRCS}
   )
