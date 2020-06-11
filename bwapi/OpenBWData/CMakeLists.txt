@@ -22,9 +22,15 @@ include_directories(
   ${OPENBW_DIR}
 )
 
-add_library(OpenBWData SHARED
-  BW/BWData.cpp
-)
+if (OPENBWAPI_BUILD_STATIC_LIBS)
+  add_library(OpenBWData STATIC
+    BW/BWData.cpp
+  )
+else()
+  add_library(OpenBWData SHARED
+    BW/BWData.cpp
+  )
+endif()
 
 set_property(TARGET OpenBWData PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_property(TARGET OpenBWData PROPERTY WINDOWS_EXPORT_ALL_SYMBOLS ON)

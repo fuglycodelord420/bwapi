@@ -50,10 +50,17 @@ add_library(BWAPIObj OBJECT
 
 set_property(TARGET BWAPIObj PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-add_library(BWAPI SHARED
-  $<TARGET_OBJECTS:BWAPIObj>
-  $<TARGET_OBJECTS:BWAPICore>
-)
+if (OPENBWAPI_BUILD_STATIC_LIBS)
+  add_library(BWAPI STATIC
+    $<TARGET_OBJECTS:BWAPIObj>
+    $<TARGET_OBJECTS:BWAPICore>
+  )
+else()
+  add_library(BWAPI SHARED
+    $<TARGET_OBJECTS:BWAPIObj>
+    $<TARGET_OBJECTS:BWAPICore>
+  )
+endif()
 
 target_link_libraries(BWAPI BWAPILIB BWData)
 
