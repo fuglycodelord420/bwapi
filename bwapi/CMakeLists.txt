@@ -22,6 +22,7 @@ add_subdirectory(BWAPILauncher)
 add_subdirectory(BWAPIClient)
 
 add_subdirectory(ExampleAIModule)
+add_subdirectory(NullAIModule)
 add_subdirectory(TestAIModule)
 
 if (BUILD_COMPAT)
