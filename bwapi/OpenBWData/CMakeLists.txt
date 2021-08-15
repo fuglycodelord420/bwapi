@@ -36,14 +36,14 @@ set_property(TARGET OpenBWData PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_property(TARGET OpenBWData PROPERTY WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 if (OPENBW_ENABLE_UI)
-  target_link_libraries(OpenBWData openbw_ui)
+	target_link_libraries(OpenBWData openbw_ui "-lsimple_sdlcore" "-lsimple_graphical" "-lsimple_interactive" "-lSDL2")
 endif()
 
 if (NOT WIN32)
   set(THREADS_PREFER_PTHREAD_FLAG ON)
 endif()
 find_package(Threads REQUIRED)
-target_link_libraries(OpenBWData Threads::Threads)
+target_link_libraries(OpenBWData Threads::Threads "-lsimple_sdlcore" "-lsimple_graphical" "-lsimple_interactive" "-lSDL2")
 
 if (WIN32)
   target_link_libraries(OpenBWData "ws2_32;mswsock")

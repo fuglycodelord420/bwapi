@@ -174,33 +174,33 @@ struct ui_wrapper {
     player.set_st(st);
     return player;
   }
-  ui_wrapper(bwgame::state& st, std::string mpq_path) {
+  ui_wrapper(bwgame::sync_functions& sync_funcs, bwgame::state& st, std::string mpq_path) {
 
-    ui_thread = ui_thread_t([this, player = get_player(st), mpq_path]() mutable {
+    ui_thread = ui_thread_t([this, player = get_player(st), mpq_path, &sync_funcs]() mutable {
       std::unique_lock<std::mutex> l(mut);
-      ui_functions ui(std::move(player));
+      ui_functions ui(std::move(player), bwgame::int2(800,600), true);
+	  sync_funcs.sound_proxy = &ui;
+	  ui.actions_proxy = &sync_funcs;
+	  ui.enable_user_input(sync_funcs.sync_st.local_client->player_slot);
 
       ui.exit_on_close = false;
-      ui.global_volume = 0;
+      ui.global_volume = 50;
       auto load_data_file = bwgame::data_loading::data_files_directory(mpq_path.c_str());
       ui.load_data_file = [&](bwgame::a_vector<uint8_t>& data, bwgame::a_string filename) {
         load_data_file(data, std::move(filename));
       };
       ui.init();
 
-      size_t screen_width = 800;
-      size_t screen_height = 600;
-
-      ui.resize(screen_width, screen_height);
-      ui.screen_pos = {(int)ui.game_st.map_width / 2 - (int)screen_width / 2, (int)ui.game_st.map_height / 2 - (int)screen_height / 2};
+		bwgame::int2 mapSize(ui.game_st.map_width, ui.game_st.map_height);
+		ui.view.position = mapSize/2 - ui.view.size/2;
 
       ui.on_draw = [this, &ui](uint8_t* data, size_t data_pitch) {
         this->m_screen_buffer = data;
         //this->screen_width = ui.screen_width;
         this->screen_width = data_pitch;
-        this->screen_height = ui.screen_height;
-        this->screen_pos_x = ui.screen_pos.x;
-        this->screen_pos_y = ui.screen_pos.y;
+        this->screen_height = ui.view.size.y();
+        this->screen_pos_x = ui.view.position.x();
+        this->screen_pos_y = ui.view.position.y();
         this->on_draw(data, data_pitch);
       };
 
@@ -262,8 +262,7 @@ struct draw_ui_wrapper {
     return player;
   }
   ui_functions ui;
-  draw_ui_wrapper(bwgame::state& st, std::string mpq_path) : ui(get_player(st)) {
-    ui.create_window = false;
+  draw_ui_wrapper(bwgame::state& st, std::string mpq_path) : ui(get_player(st), bwgame::int2(800,600), false) {
     ui.draw_ui_elements = false;
     ui.exit_on_close = false;
     ui.global_volume = 0;
@@ -273,15 +272,13 @@ struct draw_ui_wrapper {
     };
     ui.init();
 
-    size_t screen_width = 800;
-    size_t screen_height = 600;
-
-    ui.resize(screen_width, screen_height);
-    ui.screen_pos = {(int)ui.game_st.map_width / 2 - (int)screen_width / 2, (int)ui.game_st.map_height / 2 - (int)screen_height / 2};
+	bwgame::int2 mapSize(ui.game_st.map_width, ui.game_st.map_height);
+	ui.view.position = mapSize/2 - ui.view.size/2;
   }
   std::tuple<int, int, uint32_t*> draw(int x, int y, int width, int height) {
-    ui.screen_pos = {x, y};
-    if (ui.screen_width != width || ui.screen_height != height) ui.resize(width, height);
+    ui.view.position = bwgame::int2{x, y};
+	bwgame::int2 newSize(width, height);
+    if (ui.view.size != newSize) ui.resize(newSize);
     ui.update();
     return ui.get_rgba_buffer();
   }
@@ -824,7 +821,7 @@ struct openbwapi_impl {
 
   void next_frame() {
     if (!ui && ui_enabled) {
-      ui = std::make_unique<ui_wrapper>(st, game_setup_helper.env("OPENBW_MPQ_PATH", "."));
+      ui = std::make_unique<ui_wrapper>(sync_funcs, st, game_setup_helper.env("OPENBW_MPQ_PATH", "."));
     }
     if (ui) {
       auto l = ui->get_lock();
@@ -1595,7 +1592,7 @@ void Game::setRandomSeed(uint32_t value)
   impl->st.lcg_rand_state = value;
 }
 
-void Game::disableTriggers()  
+void Game::disableTriggers()
 {
   impl->st.trigger_timer = -1;
 }
@@ -2479,7 +2476,7 @@ size_t Region::groupIndex() const
 
 Position Region::getCenter() const
 {
-  bwgame::xy pos = impl->funcs.to_xy(impl->funcs.game_st.regions.regions.at(index).center);
+  bwgame::xy pos = to_xy(impl->funcs.game_st.regions.regions.at(index).center);
   return {(s16)pos.x, (s16)pos.y};
 }
 

@@ -13,10 +13,10 @@ add_executable(BWAPILauncher
   Source/Main.cpp
 )
 
-target_link_libraries(BWAPILauncher BWAPI)
+target_link_libraries(BWAPILauncher BWAPI "-lsimple_sdlcore -lsimple_graphical -lsimple_interactive -lSDL2")
 
 if (NOT WIN32)
-  target_link_libraries(BWAPILauncher dl)
+  target_link_libraries(BWAPILauncher dl "-lsimple_sdlcore" "-lsimple_graphical" "-lsimple_interactive" "-lSDL2")
 endif()
 
 install(TARGETS BWAPILauncher
