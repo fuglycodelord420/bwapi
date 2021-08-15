@@ -1,3 +1,10 @@
+# Fugly changes
+
+- Enabled sound
+- Enabled basic user input
+- Null AI to not interfere with user input
+- license is now GPL 3, sorry prorietary bots
+
 # BWAPI for OpenBW
 
 This is a fork of BWAPI which allows the use of OpenBW as a backend for BWAPI.
@@ -92,7 +99,7 @@ Uses TCP/IP for networking. By default it will bind to 0.0.0.0 and listen on por
 There are no errors if it fails to bind or connect.
 
 #### LOCAL
-Uses local sockets for interprocess communication. 
+Uses local sockets for interprocess communication.
 
 `OPENBW_LOCAL_PATH` - the path to the socket file to use. If it exists, then it attempts to connect, otherwise it will create the file and listen on it.
 One of the clients has to listen, so when starting two clients, the file should not already exist.
