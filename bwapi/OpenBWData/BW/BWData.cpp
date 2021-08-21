@@ -30,6 +30,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <condition_variable>
+#include <variant>
 
 using bwgame::error;
 
@@ -49,6 +50,11 @@ void fatal_error_str(a_string str){
 //#endif
 
 namespace BW {
+
+	template <typename SyncFuncsVariant> auto& get_sync_st(SyncFuncsVariant&& sfv)
+	{ return std::visit([](auto&& sf) -> auto& { return sf.sync_st; }, std::forward<SyncFuncsVariant>(sfv)); }
+	template <typename SyncFuncsVariant> auto& get_action_st(SyncFuncsVariant&& sfv)
+	{ return std::visit([](auto&& sf) -> auto& { return sf.action_st; }, std::forward<SyncFuncsVariant>(sfv)); }
 
 
 #ifdef OPENBW_ENABLE_UI
@@ -174,14 +180,15 @@ struct ui_wrapper {
     player.set_st(st);
     return player;
   }
-  ui_wrapper(bwgame::sync_functions& sync_funcs, bwgame::state& st, std::string mpq_path) {
+  ui_wrapper(bwgame::action_functions& action_funcs, int player_id, bwgame::state& st, std::string mpq_path) {
 
-    ui_thread = ui_thread_t([this, player = get_player(st), mpq_path, &sync_funcs]() mutable {
+    ui_thread = ui_thread_t([this, player = get_player(st), mpq_path, &action_funcs, player_id]() mutable {
       std::unique_lock<std::mutex> l(mut);
       ui_functions ui(std::move(player), bwgame::int2(800,600), true);
-	  sync_funcs.sound_proxy = &ui;
-	  ui.actions_proxy = &sync_funcs;
-	  ui.enable_user_input(sync_funcs.sync_st.local_client->player_slot);
+	  action_funcs.sound_proxy = &ui;
+	  ui.actions_proxy = &action_funcs;
+	  if(player_id != -1)
+		  ui.enable_user_input(player_id);
 
       ui.exit_on_close = false;
       ui.global_volume = 50;
@@ -349,26 +356,30 @@ void g_global_init_if_necessary(const bwgame::global_state& global_st, std::stri
 
 struct game_setup_helper_t {
   bwgame::state& st;
+  bwgame::action_state& action_st;
+  bwgame::sync_state& sync_st;
   game_vars& vars;
   bwgame::replay_functions& replay_funcs;
-  bwgame::sync_functions& sync_funcs;
+
+  std::variant<
+	  bwgame::sync_server_noop,
+	  bwgame::sync_server_asio_tcp,
+#ifndef _WIN32
+	  bwgame::sync_server_asio_local,
+	  bwgame::sync_server_asio_posix_stream
+#endif
+  > server = bwgame::sync_server_noop();
+
+  std::variant<
+	  bwgame::sync_functions<bwgame::sync_server_noop>,
+	  bwgame::sync_functions<bwgame::sync_server_asio_tcp>,
+#ifndef _WIN32
+	  bwgame::sync_functions<bwgame::sync_server_asio_local>,
+	  bwgame::sync_functions<bwgame::sync_server_asio_posix_stream>
+#endif
+  > sync_funcs {std::in_place_type<bwgame::sync_functions<>>, st, action_st, sync_st, std::get<bwgame::sync_server_noop>(server)};
 
   bwgame::a_vector<uint8_t> scenario_chk_data;
-
-  bwgame::sync_server_noop noop_server;
-  bwgame::sync_server_asio_tcp tcp_server;
-#ifndef _WIN32
-  bwgame::sync_server_asio_local local_server;
-#else
-  bwgame::sync_server_noop local_server;
-#endif
-#ifndef _WIN32
-  bwgame::sync_server_asio_posix_stream file_server;
-#else
-  bwgame::sync_server_noop file_server;
-#endif
-
-  int server_n = 0;
 
   std::string env(std::string name, std::string def) {
     auto i = vars.override_env_var.find(name);
@@ -407,8 +418,6 @@ struct game_setup_helper_t {
     vars.map_player_controllers = {};
     vars.map_player_races = {};
 
-    server_n = 0;
-
     if (ext == "rep") {
 
       replay_funcs.replay_st = bwgame::replay_state();
@@ -422,12 +431,18 @@ struct game_setup_helper_t {
 
     } else {
 
-      auto name = sync_funcs.sync_st.local_client->name;
-      auto* save_replay = sync_funcs.sync_st.save_replay;
-      sync_funcs.action_st = bwgame::action_state();
-      sync_funcs.sync_st = bwgame::sync_state();
-      sync_funcs.sync_st.local_client->name = std::move(name);
-      sync_funcs.sync_st.save_replay = save_replay;
+	  sync_funcs.emplace<bwgame::sync_functions<>>(st, action_st, sync_st, std::get<bwgame::sync_server_noop>(server));
+	  auto* save_replay = sync_st.save_replay;
+	  std::visit([&](auto& sf)
+	  {
+		  auto name = sf.sync_st.local_client->name;
+		  save_replay = sf.sync_st.save_replay;
+		  sf.action_st = bwgame::action_state(); // wow great we ger refs to assign to, so we actualy own them cool, great, very design, such elegant
+		  sf.sync_st = bwgame::sync_state();
+		  sf.sync_st.local_client->name = std::move(name);
+		  sf.sync_st.save_replay = save_replay;
+	  }, sync_funcs);
+
       if (save_replay) *save_replay = bwgame::replay_saver_state();
       bwgame::game_load_functions load_funcs(st);
 
@@ -440,29 +455,31 @@ struct game_setup_helper_t {
 
       load_funcs.load_map_data(scenario_chk_data.data(), scenario_chk_data.size(), [&]() {
 
-        vars.game_type = vars.game_type_melee ? 2 : 10;
-        sync_funcs.sync_st.game_type_melee = vars.game_type_melee;
-        if (vars.game_type_melee) {
-          load_funcs.setup_info.victory_condition = 1;
-          load_funcs.setup_info.starting_units = 2;
-          load_funcs.setup_info.resource_type = 1;
-        }
-        sync_funcs.sync_st.setup_info = &load_funcs.setup_info;
+		std::visit([&](auto& sf) {
+			vars.game_type = vars.game_type_melee ? 2 : 10;
+			sf.sync_st.game_type_melee = vars.game_type_melee;
+			if (vars.game_type_melee) {
+			  load_funcs.setup_info.victory_condition = 1;
+			  load_funcs.setup_info.starting_units = 2;
+			  load_funcs.setup_info.resource_type = 1;
+			}
+			sf.sync_st.setup_info = &load_funcs.setup_info;
 
-        while (!sync_funcs.sync_st.game_started) {
-          sync_funcs.sync(noop_server);
-          vars.local_player_id = sync_funcs.sync_st.local_client->player_slot;
-          if (vars.local_player_id != -1) {
-            for (auto& v : st.players) {
-              if (v.controller == bwgame::player_t::controller_open || v.controller == bwgame::player_t::controller_computer) {
-                  v.controller = bwgame::player_t::controller_computer;
-              }
-            }
-          }
-          setup_function();
-        }
+			while (!sf.sync_st.game_started) {
+			  sf.sync();
+			  vars.local_player_id = sf.sync_st.local_client->player_slot;
+			  if (vars.local_player_id != -1) {
+				for (auto& v : st.players) {
+				  if (v.controller == bwgame::player_t::controller_open || v.controller == bwgame::player_t::controller_computer) {
+					  v.controller = bwgame::player_t::controller_computer;
+				  }
+				}
+			  }
+			  setup_function();
+			}
 
-        sync_funcs.sync_st.setup_info = nullptr;
+			sf.sync_st.setup_info = nullptr;
+		}, sync_funcs);
       });
 
       vars.is_replay = false;
@@ -500,19 +517,14 @@ struct game_setup_helper_t {
     vars.map_player_controllers = {};
     vars.map_player_races = {};
 
-    server_n = 0;
+    int server_n = 0;
 
     bool is_replay = ext == "rep";
 
-    auto name = sync_funcs.sync_st.local_client->name;
-    auto* save_replay = sync_funcs.sync_st.save_replay;
+    auto name = sync_st.local_client->name;
+    auto* save_replay = sync_st.save_replay;
     if (is_replay) save_replay = nullptr;
-    sync_funcs.action_st = bwgame::action_state();
-    sync_funcs.sync_st = bwgame::sync_state();
-    sync_funcs.sync_st.local_client->name = std::move(name);
-    sync_funcs.sync_st.save_replay = save_replay;
-    if (save_replay) *save_replay = bwgame::replay_saver_state();
-    sync_funcs.sync_st.latency = 3;
+
     bwgame::game_load_functions load_funcs(st);
 
     if (!is_replay) {
@@ -539,19 +551,40 @@ struct game_setup_helper_t {
     std::string connect_hostname = env("OPENBW_TCP_CONNECT_HOSTNAME", "127.0.0.1");
     int connect_port = std::atoi(env("OPENBW_TCP_CONNECT_PORT", "6112").c_str());
 
-    auto func = [&]() {
+    if (server_n == 1)
+		server.emplace<bwgame::sync_server_asio_tcp>();
+#ifndef _WIN32
+	else if(server_n == 2)
+		server.emplace<bwgame::sync_server_asio_local>();
+	else if(server_n == 3)
+		server.emplace<bwgame::sync_server_asio_posix_stream>();
+#endif
+
+	std::visit([&](auto& srv){
+		sync_funcs.emplace<bwgame::sync_functions<std::remove_reference_t<decltype(srv)>>>(st, action_st, sync_st, srv);
+	}, server);
+	std::visit([&](auto& sf) {
+		sf.action_st = bwgame::action_state();
+		sf.sync_st = bwgame::sync_state();
+		sf.sync_st.local_client->name = std::move(name);
+		sf.sync_st.save_replay = save_replay;
+	}, sync_funcs);
+
+	auto start_server = [&]() {
       if (server_n == 1) {
+		auto& tcp_server = std::get<bwgame::sync_server_asio_tcp>(server);
         tcp_server.bind(listen_hostname.c_str(), listen_port);
         tcp_server.connect(connect_hostname.c_str(), connect_port);
       } else if (server_n == 2) {
 #ifndef _WIN32
+		auto& local_server = std::get<bwgame::sync_server_asio_local>(server);
         if (lan_mode == "LOCAL_AUTO") {
           std::string directory = env("OPENBW_LOCAL_AUTO_DIRECTORY", "");
           if (directory.empty()) directory = "/tmp/openbw";
           while (!directory.empty() && *std::prev(directory.end()) == '/') directory.erase(std::prev(directory.end()));
           mkdir(directory.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
           chmod(directory.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
-          std::string path = directory + "/" + sync_funcs.sync_st.local_client->uid.str() + ".socket";
+          std::string path = directory + "/" + sync_st.local_client->uid.str() + ".socket";
           local_server.bind(path.c_str());
           DIR* d = opendir(directory.c_str());
           if (d) {
@@ -591,6 +624,7 @@ struct game_setup_helper_t {
 #endif
       } else if (server_n == 3) {
 #ifndef _WIN32
+		auto& file_server = std::get<bwgame::sync_server_asio_posix_stream>(server);
         int fd_read = -1;
         int fd_write = -1;
         if (lan_mode == "FD") {
@@ -624,21 +658,25 @@ struct game_setup_helper_t {
 #endif
       }
 
-      vars.game_type = vars.game_type_melee ? 2 : 10;
-      sync_funcs.sync_st.game_type_melee = vars.game_type_melee;
-      if (vars.game_type_melee) {
-        load_funcs.setup_info.victory_condition = 1;
-        load_funcs.setup_info.starting_units = 2;
-        load_funcs.setup_info.resource_type = 1;
-      }
-      sync_funcs.sync_st.setup_info = &load_funcs.setup_info;
+	  if (save_replay) *save_replay = bwgame::replay_saver_state();
+	  std::visit([&](auto& sf) {
+		  sf.sync_st.latency = 3;
+		  vars.game_type = vars.game_type_melee ? 2 : 10;
+		  sf.sync_st.game_type_melee = vars.game_type_melee;
+		  if (vars.game_type_melee) {
+		  load_funcs.setup_info.victory_condition = 1;
+		  load_funcs.setup_info.starting_units = 2;
+		  load_funcs.setup_info.resource_type = 1;
+		  }
+		  sf.sync_st.setup_info = &load_funcs.setup_info;
 
-      while (!sync_funcs.sync_st.game_started) {
-        sync();
-        setup_function();
-      }
+		  while (!sf.sync_st.game_started) {
+		  sync();
+		  setup_function();
+		  }
 
-      sync_funcs.sync_st.setup_info = nullptr;
+		  sf.sync_st.setup_info = nullptr;
+	  }, sync_funcs);
     };
 
     if (is_replay) {
@@ -652,115 +690,89 @@ struct game_setup_helper_t {
       vars.game_type = replay_funcs.replay_st.game_type;
       vars.game_type_melee = vars.game_type == 2;
 
-      func();
+      start_server();
 
     } else {
       vars.is_replay = false;
       load_funcs.load_map_data(scenario_chk_data.data(), scenario_chk_data.size(), [&]() {
-        func();
+        start_server();
       });
     }
 
     vars.map_filename = filename;
   }
 
-  template<typename server_T>
-  void leave_game(server_T& server) {
+  void leave_game() {
     if (!vars.left_game) {
       vars.left_game = true;
       if (!vars.is_replay) {
-        sync_funcs.leave_game(server);
+		std::visit([&](auto& sf) {sf.leave_game();}, sync_funcs);
       }
     }
 
   }
 
   void sync() {
-    if (server_n == 0) sync_funcs.sync(noop_server);
-    else if (server_n == 1) sync_funcs.sync(tcp_server);
-    else if (server_n == 2) sync_funcs.sync(local_server);
-    else if (server_n == 3) sync_funcs.sync(file_server);
-    vars.local_player_id = sync_funcs.sync_st.local_client->player_slot;
+	  std::visit([&](auto& sf) {sf.sync();}, sync_funcs);
+	  vars.local_player_id = sync_st.local_client->player_slot;
   }
 
   void start_game() {
-    if (server_n == 0) sync_funcs.start_game(noop_server);
-    else if (server_n == 1) sync_funcs.start_game(tcp_server);
-    else if (server_n == 2) sync_funcs.start_game(local_server);
-    else if (server_n == 3) sync_funcs.start_game(file_server);
+	  std::visit([&](auto& sf) {sf.start_game();}, sync_funcs);
   }
+
   void switch_to_slot(int n) {
-    if (sync_funcs.sync_st.local_client->player_slot == n) return;
-    if (server_n == 0) sync_funcs.switch_to_slot(noop_server, n);
-    else if (server_n == 1) sync_funcs.switch_to_slot(tcp_server, n);
-    else if (server_n == 2) sync_funcs.switch_to_slot(local_server, n);
-    else if (server_n == 3) sync_funcs.switch_to_slot(file_server, n);
+	  std::visit([&](auto& sf) {
+		  if(sf.sync_st.local_client->player_slot != n)
+			  sf.switch_to_slot(n);
+	  }, sync_funcs);
   }
+
   void set_name(const std::string& name) {
-    if (sync_funcs.sync_st.local_client->name == name) return;
-    sync_funcs.set_local_client_name(name.c_str());
+	  std::visit([&](auto& sf) {
+		  if (sf.sync_st.local_client->name != name)
+			  sf.set_local_client_name(name.c_str());
+	  }, sync_funcs);
   }
 
   int connected_player_count() {
-    return sync_funcs.connected_player_count();
+
+	return std::visit([&](auto& sf) {
+		return sf.connected_player_count();
+	}, sync_funcs);
   }
 
   void set_race(int race) {
-    int n = sync_funcs.sync_st.local_client->player_slot;
-    if (n == -1 || st.players.at(n).race == (bwgame::race_t)race) return;
-    if (server_n == 0) sync_funcs.set_local_client_race(noop_server, (bwgame::race_t)race);
-    else if (server_n == 1) sync_funcs.set_local_client_race(tcp_server, (bwgame::race_t)race);
-    else if (server_n == 2) sync_funcs.set_local_client_race(local_server, (bwgame::race_t)race);
-    else if (server_n == 3) sync_funcs.set_local_client_race(file_server, (bwgame::race_t)race);
+
+	  std::visit([&](auto& sf) {
+		  int n = sf.sync_st.local_client->player_slot;
+		  if (n == -1 || st.players.at(n).race == (bwgame::race_t)race) return;
+		  sf.set_local_client_race((bwgame::race_t)race);
+	  }, sync_funcs);
   }
 
   void input_action(const uint8_t* data, size_t size) {
-    if (server_n == 0) sync_funcs.input_action(noop_server, data, size);
-    else if (server_n == 1) sync_funcs.input_action(tcp_server, data, size);
-    else if (server_n == 2) sync_funcs.input_action(local_server, data, size);
-    else if (server_n == 3) sync_funcs.input_action(file_server, data, size);
+	std::visit([&](auto& sf) { sf.input_action(data, size); }, sync_funcs);
   }
 
   void next_frame() {
-    if (server_n == 0) sync_funcs.bwapi_compatible_next_frame(noop_server);
-    else if (server_n == 1) sync_funcs.bwapi_compatible_next_frame(tcp_server);
-    else if (server_n == 2) sync_funcs.bwapi_compatible_next_frame(local_server);
-    else if (server_n == 3) sync_funcs.bwapi_compatible_next_frame(file_server);
-  }
-
-  void leave_game() {
-    if (server_n == 0) leave_game(noop_server);
-    else if (server_n == 1) leave_game(tcp_server);
-    else if (server_n == 2) leave_game(local_server);
-    else if (server_n == 3) leave_game(file_server);
+	std::visit([&](auto& sf) { sf.next_frame(); }, sync_funcs);
   }
 
   void create_unit(const bwgame::unit_type_t* unit_type, bwgame::xy pos, int owner) {
-    if (server_n == 0) sync_funcs.create_unit(noop_server, unit_type, pos, owner);
-    else if (server_n == 1) sync_funcs.create_unit(tcp_server, unit_type, pos, owner);
-    else if (server_n == 2) sync_funcs.create_unit(local_server, unit_type, pos, owner);
-    else if (server_n == 3) sync_funcs.create_unit(file_server, unit_type, pos, owner);
+	std::visit([&](auto& sf) { sf.create_unit(unit_type, pos, owner); }, sync_funcs);
   }
 
   void kill_unit(bwgame::unit_t* u) {
-    if (server_n == 0) sync_funcs.kill_unit(noop_server, u);
-    else if (server_n == 1) sync_funcs.kill_unit(tcp_server, u);
-    else if (server_n == 2) sync_funcs.kill_unit(local_server, u);
-    else if (server_n == 3) sync_funcs.kill_unit(file_server, u);
+	std::visit([&](auto& sf) { sf.kill_unit(u); }, sync_funcs);
   }
 
   void remove_unit(bwgame::unit_t* u) {
-    if (server_n == 0) sync_funcs.remove_unit(noop_server, u);
-    else if (server_n == 1) sync_funcs.remove_unit(tcp_server, u);
-    else if (server_n == 2) sync_funcs.remove_unit(local_server, u);
-    else if (server_n == 3) sync_funcs.remove_unit(file_server, u);
+	std::visit([&](auto& sf) { sf.remove_unit(u); }, sync_funcs);
   }
 
   void send_custom_action(const void* data, size_t size) {
-    if (server_n == 0) sync_funcs.send_custom_action(noop_server, data, size);
-    else if (server_n == 1) sync_funcs.send_custom_action(tcp_server, data, size);
-    else if (server_n == 2) sync_funcs.send_custom_action(local_server, data, size);
-    else if (server_n == 3) sync_funcs.send_custom_action(file_server, data, size);
+	std::visit([&](auto& sf) { sf.send_custom_action(data, size); }, sync_funcs);
   }
 
 };
@@ -768,10 +780,8 @@ struct game_setup_helper_t {
 template<typename F>
 struct openbwapi_functions: F {
   game_vars& vars;
-
   template<typename... args_T>
   openbwapi_functions(game_vars& vars, args_T&&... args) : F(std::forward<args_T>(args)...), vars(vars) {}
-
 };
 
 struct openbwapi_impl {
@@ -779,8 +789,7 @@ struct openbwapi_impl {
   bwgame::state& st;
   openbwapi_functions<bwgame::state_functions> funcs;
   openbwapi_functions<bwgame::replay_functions> replay_funcs;
-  openbwapi_functions<bwgame::sync_functions> sync_funcs;
-  game_setup_helper_t game_setup_helper{st, vars, replay_funcs, sync_funcs};
+  game_setup_helper_t game_setup_helper;
   std::function<void(const char*)> print_text_callback;
   std::unique_ptr<ui_wrapper> ui;
   std::unique_ptr<draw_ui_wrapper> draw_ui;
@@ -794,7 +803,13 @@ struct openbwapi_impl {
   int screen_x = 0;
   int screen_y = 0;
 
-  openbwapi_impl(game_vars& vars, bwgame::state& st, bwgame::action_state& action_st, bwgame::replay_state& replay_st, bwgame::sync_state& sync_st) : vars(vars), st(st), funcs(vars, st), replay_funcs(vars, st, action_st, replay_st), sync_funcs(vars, st, action_st, sync_st) {
+  openbwapi_impl(game_vars& vars, bwgame::state& st, bwgame::action_state& action_st, bwgame::replay_state& replay_st, bwgame::sync_state& sync_st) :
+	  vars(vars),
+	  st(st),
+	  funcs(vars, st),
+	  replay_funcs(vars, st, action_st, replay_st),
+	  game_setup_helper{st, action_st, sync_st, vars, replay_funcs}
+	{
     auto speed = game_setup_helper.env("OPENBW_GAME_SPEED", "");
     if (!speed.empty()) {
       speed_override = true;
@@ -821,7 +836,9 @@ struct openbwapi_impl {
 
   void next_frame() {
     if (!ui && ui_enabled) {
-      ui = std::make_unique<ui_wrapper>(sync_funcs, st, game_setup_helper.env("OPENBW_MPQ_PATH", "."));
+      ui = std::make_unique<ui_wrapper>(
+		  std::visit([](auto& sf) -> bwgame::action_functions& { return sf; }, game_setup_helper.sync_funcs),
+		  vars.local_player_id, st, game_setup_helper.env("OPENBW_MPQ_PATH", "."));
     }
     if (ui) {
       auto l = ui->get_lock();
@@ -1012,7 +1029,7 @@ void Game::overrideEnvVar(std::string var, std::string value)
 }
 
 int Game::g_LocalHumanID() const {
-  return impl->sync_funcs.sync_st.local_client->player_slot;
+  return get_sync_st(impl->game_setup_helper.sync_funcs).local_client->player_slot;
 }
 
 Player Game::getPlayer(int n) const
@@ -1132,7 +1149,7 @@ void Game::setFrameSkip(int value)
 
 int Game::getLatencyFrames() const
 {
-  return impl->sync_funcs.sync_st.latency;
+  return get_sync_st(impl->game_setup_helper.sync_funcs).latency;
 }
 
 int Game::GameSpeed() const
@@ -1463,7 +1480,7 @@ bool Game::getScenarioChk(std::vector<char>& data) const
 bool Game::gameOver() const
 {
   auto done = [&]() {
-    int n = impl->sync_funcs.sync_st.local_client->player_slot;
+    int n = get_sync_st(impl->game_setup_helper.sync_funcs).local_client->player_slot;
     if (n != -1 && (impl->funcs.player_won(n) || impl->funcs.player_defeated(n))) return true;
     return false;
   };
@@ -1493,8 +1510,9 @@ void Game::enableCheats() const
 
 void Game::saveReplay(const std::string& filename)
 {
-  if (impl->sync_funcs.sync_st.save_replay) {
-    bwgame::replay_saver_functions replay_saver_funcs(*impl->sync_funcs.sync_st.save_replay);
+  auto&& save_replay = get_sync_st(impl->game_setup_helper.sync_funcs).save_replay;
+  if (save_replay) {
+    bwgame::replay_saver_functions replay_saver_funcs(*save_replay);
     bwgame::data_loading::file_writer<> w(filename.c_str());
     replay_saver_funcs.save_replay(impl->st.current_frame, w);
   }
@@ -1568,7 +1586,7 @@ Snapshot Game::saveSnapshot()
 {
   auto v = std::make_unique<snapshot_impl>();
   v->st = bwgame::copy_state(impl->st);
-  if (impl->vars.is_replay) v->action_st = bwgame::copy_state(impl->sync_funcs.action_st, impl->st, v->st);
+  if (impl->vars.is_replay) v->action_st = bwgame::copy_state(get_action_st(impl->game_setup_helper.sync_funcs), impl->st, v->st);
   v->vars = impl->vars;
   Snapshot r;
   r.impl = std::move(v);
@@ -1580,10 +1598,10 @@ void Game::loadSnapshot(const Snapshot& snapshot)
   auto& v = snapshot.impl;
   impl->vars = v->vars;
   impl->st = bwgame::copy_state(v->st);
-  if (impl->vars.is_replay) impl->sync_funcs.action_st = bwgame::copy_state(*v->action_st, v->st, impl->st);
+  if (impl->vars.is_replay) get_action_st(impl->game_setup_helper.sync_funcs) = bwgame::copy_state(*v->action_st, v->st, impl->st);
 
-  if (impl->sync_funcs.sync_st.save_replay) {
-    impl->sync_funcs.sync_st.save_replay = nullptr;
+  if (get_sync_st(impl->game_setup_helper.sync_funcs).save_replay) {
+    get_sync_st(impl->game_setup_helper.sync_funcs).save_replay = nullptr;
   }
 }
 
@@ -1604,10 +1622,12 @@ void Game::sendCustomAction(const void *data, size_t size)
 
 void Game::setCustomActionCallback(std::function<void(int, const char* data, size_t size)> callback)
 {
-  impl->game_setup_helper.sync_funcs.on_custom_action = [callback = std::move(callback)](int player, auto& r) {
-    size_t n = r.left();
-    callback(player, (const char*)r.get_n(n), n);
-  };
+	std::visit([&](auto& sf){
+		sf.on_custom_action = [callback = std::move(callback)](int player, auto& r) {
+			size_t n = r.left();
+			callback(player, (const char*)r.get_n(n), n);
+		};
+	}, impl->game_setup_helper.sync_funcs);
 }
 
 int Player::playerColorIndex() const
@@ -1620,7 +1640,7 @@ const char* Player::szName() const
   if (impl->vars.is_replay) {
     return impl->replay_funcs.replay_st.player_name.at(owner).c_str();
   } else {
-    return impl->sync_funcs.sync_st.player_names.at(owner).c_str();
+    return get_sync_st(impl->game_setup_helper.sync_funcs).player_names.at(owner).c_str();
   }
 }
 
@@ -1631,7 +1651,7 @@ int Player::nRace() const
 
 int Player::pickedRace() const
 {
-  return (int)impl->sync_funcs.sync_st.picked_races.at(owner);
+  return (int)get_sync_st(impl->game_setup_helper.sync_funcs).picked_races.at(owner);
 }
 
 int Player::nType() const
@@ -1811,12 +1831,13 @@ int Player::downloadStatus() const
 
 void Player::setRace(int race)
 {
+  auto& sync_st = get_sync_st(impl->game_setup_helper.sync_funcs);
   if (!impl->vars.is_multi_player) {
-    if (impl->sync_funcs.sync_st.initial_slot_races.at(owner) == (bwgame::race_t)5) {
+    if (sync_st.initial_slot_races.at(owner) == (bwgame::race_t)5) {
       impl->funcs.st.players.at(owner).race = (bwgame::race_t)race;
     }
   } else {
-    if (owner == impl->sync_funcs.sync_st.local_client->player_slot) {
+    if (owner == sync_st.local_client->player_slot) {
       impl->game_setup_helper.set_race(race);
     }
   }
@@ -1839,47 +1860,47 @@ void Player::openSlot()
 
 void Player::setUpgradeLevel(int upgrade, int level)
 {
-  bwgame::sync_functions::dynamic_writer<> w;
-  w.template put<uint8_t>(210);
-  w.template put<uint8_t>(1);
-  w.template put<uint8_t>(0);
-  w.template put<uint8_t>(owner);
-  w.template put<uint8_t>(upgrade);
-  w.template put<int8_t>(level);
+  bwgame::dynamic_data_writer<> w;
+  w.put<uint8_t>(210);
+  w.put<uint8_t>(1);
+  w.put<uint8_t>(0);
+  w.put<uint8_t>(owner);
+  w.put<uint8_t>(upgrade);
+  w.put<int8_t>(level);
   impl->game_setup_helper.input_action(w.data(), w.size());
 }
 
 void Player::setResearched(int tech, bool researched)
 {
-  bwgame::sync_functions::dynamic_writer<> w;
-  w.template put<uint8_t>(210);
-  w.template put<uint8_t>(1);
-  w.template put<uint8_t>(1);
-  w.template put<uint8_t>(owner);
-  w.template put<uint8_t>(tech);
-  w.template put<uint8_t>(researched);
+  bwgame::dynamic_data_writer<> w;
+  w.put<uint8_t>(210);
+  w.put<uint8_t>(1);
+  w.put<uint8_t>(1);
+  w.put<uint8_t>(owner);
+  w.put<uint8_t>(tech);
+  w.put<uint8_t>(researched);
   impl->game_setup_helper.input_action(w.data(), w.size());
 }
 
 void Player::setMinerals(int value)
 {
-  bwgame::sync_functions::dynamic_writer<> w;
-  w.template put<uint8_t>(210);
-  w.template put<uint8_t>(1);
-  w.template put<uint8_t>(2);
-  w.template put<uint8_t>(owner);
-  w.template put<int32_t>(value);
+  bwgame::dynamic_data_writer<> w;
+  w.put<uint8_t>(210);
+  w.put<uint8_t>(1);
+  w.put<uint8_t>(2);
+  w.put<uint8_t>(owner);
+  w.put<int32_t>(value);
   impl->game_setup_helper.input_action(w.data(), w.size());
 }
 
 void Player::setGas(int value)
 {
-  bwgame::sync_functions::dynamic_writer<> w;
-  w.template put<uint8_t>(210);
-  w.template put<uint8_t>(1);
-  w.template put<uint8_t>(3);
-  w.template put<uint8_t>(owner);
-  w.template put<int32_t>(value);
+  bwgame::dynamic_data_writer<> w;
+  w.put<uint8_t>(210);
+  w.put<uint8_t>(1);
+  w.put<uint8_t>(3);
+  w.put<uint8_t>(owner);
+  w.put<int32_t>(value);
   impl->game_setup_helper.input_action(w.data(), w.size());
 }
 
@@ -2254,34 +2275,34 @@ int Unit::orderState() const
 
 void Unit::setHitPoints(int value)
 {
-  bwgame::sync_functions::dynamic_writer<> w;
-  w.template put<uint8_t>(210);
-  w.template put<uint8_t>(0);
-  w.template put<uint8_t>(0);
-  w.template put<uint16_t>(impl->funcs.get_unit_id(u).raw_value);
-  w.template put<int32_t>(value);
+  bwgame::dynamic_data_writer<> w;
+  w.put<uint8_t>(210);
+  w.put<uint8_t>(0);
+  w.put<uint8_t>(0);
+  w.put<uint16_t>(impl->funcs.get_unit_id(u).raw_value);
+  w.put<int32_t>(value);
   impl->game_setup_helper.input_action(w.data(), w.size());
 }
 
 void Unit::setShields(int value)
 {
-  bwgame::sync_functions::dynamic_writer<> w;
-  w.template put<uint8_t>(210);
-  w.template put<uint8_t>(0);
-  w.template put<uint8_t>(1);
-  w.template put<uint16_t>(impl->funcs.get_unit_id(u).raw_value);
-  w.template put<int32_t>(value);
+  bwgame::dynamic_data_writer<> w;
+  w.put<uint8_t>(210);
+  w.put<uint8_t>(0);
+  w.put<uint8_t>(1);
+  w.put<uint16_t>(impl->funcs.get_unit_id(u).raw_value);
+  w.put<int32_t>(value);
   impl->game_setup_helper.input_action(w.data(), w.size());
 }
 
 void Unit::setEnergy(int value)
 {
-  bwgame::sync_functions::dynamic_writer<> w;
-  w.template put<uint8_t>(210);
-  w.template put<uint8_t>(0);
-  w.template put<uint8_t>(2);
-  w.template put<uint16_t>(impl->funcs.get_unit_id(u).raw_value);
-  w.template put<int32_t>(value);
+  bwgame::dynamic_data_writer<> w;
+  w.put<uint8_t>(210);
+  w.put<uint8_t>(0);
+  w.put<uint8_t>(2);
+  w.put<uint16_t>(impl->funcs.get_unit_id(u).raw_value);
+  w.put<int32_t>(value);
   impl->game_setup_helper.input_action(w.data(), w.size());
 }
 
