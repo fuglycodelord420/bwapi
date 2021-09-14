@@ -437,7 +437,7 @@ struct game_setup_helper_t {
 	  {
 		  auto name = sf.sync_st.local_client->name;
 		  save_replay = sf.sync_st.save_replay;
-		  sf.action_st = bwgame::action_state(); // wow great we ger refs to assign to, so we actualy own them cool, great, very design, such elegant
+		  sf.action_st = bwgame::action_state(); // wow great we get refs to assign to, so we actualy own them cool, great, very design, such elegant
 		  sf.sync_st = bwgame::sync_state();
 		  sf.sync_st.local_client->name = std::move(name);
 		  sf.sync_st.save_replay = save_replay;
@@ -519,22 +519,7 @@ struct game_setup_helper_t {
 
     int server_n = 0;
 
-    bool is_replay = ext == "rep";
-
-    auto name = sync_st.local_client->name;
-    auto* save_replay = sync_st.save_replay;
-    if (is_replay) save_replay = nullptr;
-
     bwgame::game_load_functions load_funcs(st);
-
-    if (!is_replay) {
-      (bwgame::data_loading::mpq_file<>(filename))(scenario_chk_data, "staredit/scenario.chk");
-
-      if (save_replay) {
-        save_replay->map_data = scenario_chk_data.data();
-        save_replay->map_data_size = scenario_chk_data.size();
-      }
-    }
 
     std::string default_lan_mode = "LOCAL_AUTO";
 #ifdef _WIN32
@@ -560,15 +545,35 @@ struct game_setup_helper_t {
 		server.emplace<bwgame::sync_server_asio_posix_stream>();
 #endif
 
+    bool is_replay = ext == "rep";
+
 	std::visit([&](auto& srv){
 		sync_funcs.emplace<bwgame::sync_functions<std::remove_reference_t<decltype(srv)>>>(st, action_st, sync_st, srv);
 	}, server);
+
+    auto name = sync_st.local_client->name;
+    auto* save_replay = sync_st.save_replay;
+    if (is_replay) save_replay = nullptr;
+
 	std::visit([&](auto& sf) {
+        save_replay = sf.sync_st.save_replay;
 		sf.action_st = bwgame::action_state();
 		sf.sync_st = bwgame::sync_state();
 		sf.sync_st.local_client->name = std::move(name);
 		sf.sync_st.save_replay = save_replay;
 	}, sync_funcs);
+
+	  if (save_replay) *save_replay = bwgame::replay_saver_state();
+	  if(!is_replay)
+	  {
+		  (bwgame::data_loading::mpq_file<>(filename))(scenario_chk_data, "staredit/scenario.chk");
+
+		  if (save_replay) {
+			save_replay->map_data = scenario_chk_data.data();
+			save_replay->map_data_size = scenario_chk_data.size();
+		  }
+	  }
+
 
 	auto start_server = [&]() {
       if (server_n == 1) {
@@ -658,7 +663,6 @@ struct game_setup_helper_t {
 #endif
       }
 
-	  if (save_replay) *save_replay = bwgame::replay_saver_state();
 	  std::visit([&](auto& sf) {
 		  sf.sync_st.latency = 3;
 		  vars.game_type = vars.game_type_melee ? 2 : 10;
