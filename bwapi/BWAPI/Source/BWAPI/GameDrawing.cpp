@@ -224,8 +224,9 @@ namespace BWAPI
       switch ( s )
       {
         case BWAPIC::ShapeType::Text:
-           bwDrawText(x1,y1,shapeStrings.at(shape.extra1).c_str(),ctype,(char)shape.extra2);
-           break;
+          if(shape.extra1 < shapeStrings.size())
+            bwDrawText(x1,y1,shapeStrings.at(shape.extra1).c_str(),ctype,(char)shape.extra2);
+          break;
         case BWAPIC::ShapeType::Box:
           x2 = shape.x2;
           y2 = shape.y2;
