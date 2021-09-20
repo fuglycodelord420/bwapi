@@ -54,19 +54,19 @@ namespace BWAPI
   };
   BroodwarImpl_storage_t BroodwarImpl_storage;
   GameImpl& BroodwarImpl = (GameImpl&)BroodwarImpl_storage.buf;
-  
+
   BroodwarImpl_handle::BroodwarImpl_handle(BW::Game bwgame) {
     BroodwarImpl_storage.construct(bwgame);
   }
   BroodwarImpl_handle::~BroodwarImpl_handle() {
     BroodwarImpl_storage.destroy();
   }
-  
+
   GameImpl& BroodwarImpl_handle::operator*()
   {
     return BroodwarImpl;
   }
-  
+
   GameImpl* BroodwarImpl_handle::operator->()
   {
     return &BroodwarImpl;

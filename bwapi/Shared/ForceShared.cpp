@@ -1,6 +1,6 @@
 #include <BWAPI.h>
-#include "GameImpl.h"
-#include "ForceImpl.h"
+#include "BWAPI/GameImpl.h"
+#include "BWAPI/ForceImpl.h"
 
 namespace BWAPI
 {

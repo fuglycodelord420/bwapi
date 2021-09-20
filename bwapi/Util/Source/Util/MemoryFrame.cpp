@@ -1,3 +1,4 @@
+#ifdef UNDEFINED_BEHAVIOR_VOIDSTAR_TO_INT_OFFSET_THEN_BACK
 #include "MemoryFrame.h"
 #include <cstdlib>
 #include <memory.h>
@@ -131,3 +132,4 @@ namespace Util
   }
   //----------------------- --------------------------------------------
 }
+#endif

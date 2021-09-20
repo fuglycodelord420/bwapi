@@ -4,6 +4,8 @@
 //                                                                    //
 ////////////////////////////////////////////////////////////////////////
 
+#ifdef _WIN32
+
 namespace Util { class RemoteProcess; }
 
 #include "RemoteProcessID.h"
@@ -29,3 +31,5 @@ namespace Util
     HANDLE processHandle;
   };
 }
+
+#endif

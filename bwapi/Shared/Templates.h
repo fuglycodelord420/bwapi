@@ -2,8 +2,8 @@
 #include <BWAPI.h>
 #include <algorithm>
 
-#include "UnitImpl.h"
-#include "GameImpl.h"
+#include "BWAPI/UnitImpl.h"
+#include "BWAPI/GameImpl.h"
 
 namespace BWAPI
 {
@@ -73,7 +73,7 @@ namespace BWAPI
       // Note that the native finder in Broodwar uses an id between 1 and 1700, 0 being an unused entry
       // IDs provided by the client are BWAPI IDs, which are not bound
       std::unordered_map<unsigned, unsigned> finderFlags;
-      
+
       // Declare some variables
       int r = right, b = bottom;
       bool isWidthExtended  = right - left + 1 < UnitTypes::maxUnitWidth();
@@ -364,7 +364,7 @@ namespace BWAPI
       // Check if player has enough gas
       if ( pSelf->gas() < type.gasPrice() )
         return Broodwar->setLastError(Errors::Insufficient_Gas);
-      
+
       // Check if player has enough supplies
       BWAPI::Race typeRace = type.getRace();
       const int supplyRequired = type.supplyRequired() * (type.isTwoUnitsInOneEgg() ? 2 : 1);
@@ -384,7 +384,7 @@ namespace BWAPI
       if (type.requiredTech() != TechTypes::None && !pSelf->hasResearched(type.requiredTech()))
         return Broodwar->setLastError(Errors::Insufficient_Tech);
 
-      if ( builder && 
+      if ( builder &&
            addon != UnitTypes::None &&
            addon.whatBuilds().first == type.whatBuilds().first &&
            (!builder->getAddon() || builder->getAddon()->getType() != addon) )
@@ -404,9 +404,9 @@ namespace BWAPI
         return Broodwar->setLastError(Errors::Unit_Does_Not_Exist);
 
       // Global can be ordered check
-      if ( thisUnit->isLockedDown() || 
-           thisUnit->isMaelstrommed() || 
-           thisUnit->isStasised()  || 
+      if ( thisUnit->isLockedDown() ||
+           thisUnit->isMaelstrommed() ||
+           thisUnit->isStasised()  ||
            !thisUnit->isPowered() ||
            thisUnit->getOrder() == Orders::ZergBirth ||
            thisUnit->isLoaded() )
@@ -514,7 +514,7 @@ namespace BWAPI
 
       if (!canAttackMove(thisUnit, false))
         return false;
-      
+
       return true;
     }
     static inline bool canAttack(Unit thisUnit, Unit target, bool checkCanTargetUnit = true, bool checkCanIssueCommandType = true, bool checkCommandibility = true)
@@ -528,7 +528,7 @@ namespace BWAPI
         return Broodwar->setLastError(Errors::Invalid_Parameter);
       if ( !canAttackUnit(thisUnit, target, checkCanTargetUnit, checkCanIssueCommandType, false) )
         return false;
-      
+
       return true;
     }
     static inline bool canAttackGrouped(Unit thisUnit, bool checkCommandibilityGrouped = true, bool checkCommandibility = true)
@@ -667,7 +667,7 @@ namespace BWAPI
       UnitType type = thisUnit->getType();
       bool targetInAir = targetUnit->isFlying();
       WeaponType weapon = targetInAir ? type.airWeapon() : type.groundWeapon();
-      
+
       if (weapon == WeaponTypes::None)
       {
         switch (type)
@@ -1104,13 +1104,13 @@ namespace BWAPI
           return Broodwar->setLastError(Errors::Unit_Busy);
       }
       int nextLvl = self->getUpgradeLevel(type) + 1;
-      
+
       if (!self->hasUnitTypeRequirement(type.whatUpgrades()))
         return Broodwar->setLastError(Errors::Unit_Does_Not_Exist);
-      
+
       if (!self->hasUnitTypeRequirement(type.whatsRequired(nextLvl)))
         return Broodwar->setLastError(Errors::Insufficient_Tech);
-      
+
       if (self->isUpgrading(type))
         return Broodwar->setLastError(Errors::Currently_Upgrading);
 

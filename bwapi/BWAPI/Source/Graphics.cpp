@@ -1,5 +1,5 @@
 #include "Graphics.h"
-#include "GameImpl.h"
+#include "BWAPI/GameImpl.h"
 #include "BW/BWData.h"
 #include "BW/Bitmap.h"
 

@@ -3,7 +3,8 @@
 - Enabled sound
 - Enabled basic user input
 - Null AI to not interfere with user input
-- license is now GPL 3, sorry prorietary bots
+- license is now GPL 3, sorry proprietary bots
+- Partially replaced cmake with gnu make
 
 # BWAPI for OpenBW
 
@@ -16,31 +17,8 @@ This is a development version, and breaking changes can occur at any time (that 
 
 ### build & install
 
-Clone the openbw/openbw and openbw/bwapi repositories.
-OpenBW does not (yet) need to be built seperately (it will be built as part of the BWAPI build process).
-BWAPI can be built with CMake.
+TODO.
 
-The OPENBW_DIR cmake variable need to be set to the path of the openbw code.
-
-On linux, the following commands would work.
-```
-git clone https://github.com/openbw/openbw
-git clone https://github.com/openbw/bwapi
-cd bwapi
-mkdir build
-cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DOPENBW_DIR=../../openbw -DOPENBW_ENABLE_UI=1
-make
-```
-`make install` would probably install BWAPI into /usr/local. This can be changed with the CMAKE_INSTALL_PREFIX variable, eg `cmake .. -DCMAKE_BUILD_TYPE=Release -DOPENBW_DIR=../../openbw -DCMAKE_INSTALL_PREFIX=/home/username/bwapi`.
-
-I probably recommend just using it from the build folder, for now.
-
-If you are using Visual Studio, then Visual Studio 2017 will most likely be required.
-Generate Visual Studio project files with CMake, do not any existing project files from the source tree.
-
-By default, OpenBW will be built with no support for a graphical user interface, however it can be enabled with the OPENBW_ENABLE_UI cmake option (like above).
-If this option is enabled, then SDL2 must also be available.
 The UI can be disabled either by setting environment variable OPENBW_ENABLE_UI=0 or calling Broodwar->setGUI(false).
 
 ## Compiling/linking your bot

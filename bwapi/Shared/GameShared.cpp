@@ -1,5 +1,5 @@
 #include <BWAPI.h>
-#include <GameImpl.h>
+#include <BWAPI/GameImpl.h>
 #include <Templates.h>
 
 namespace BWAPI

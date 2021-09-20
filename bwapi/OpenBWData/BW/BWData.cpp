@@ -1,14 +1,14 @@
 #include "BWData.h"
 
-#include "bwgame.h"
-#include "actions.h"
-#include "replay.h"
-#include "sync.h"
-#include "replay_saver.h"
-#include "sync_server_asio_tcp.h"
+#include "openbw/bwgame.h"
+#include "openbw/actions.h"
+#include "openbw/replay.h"
+#include "openbw/sync.h"
+#include "openbw/replay_saver.h"
+#include "openbw/sync_server_asio_tcp.h"
 #ifndef _WIN32
-#include "sync_server_asio_local.h"
-#include "sync_server_asio_posix_stream.h"
+#include "openbw/sync_server_asio_local.h"
+#include "openbw/sync_server_asio_posix_stream.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -16,7 +16,7 @@
 #endif
 
 #ifdef OPENBW_ENABLE_UI
-#include "ui/ui.h"
+#include "openbw/ui.h"
 #endif
 
 #include <mutex>
@@ -34,7 +34,7 @@
 
 using bwgame::error;
 
-//#ifdef OPENBW_ENABLE_UI
+#ifdef OPENBW_ENABLE_UI
 namespace bwgame {
 namespace ui {
 void log_str(a_string str) {
@@ -47,7 +47,7 @@ void fatal_error_str(a_string str){
 }
 }
 }
-//#endif
+#endif
 
 namespace BW {
 

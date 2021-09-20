@@ -1,3 +1,5 @@
+#ifdef _WIN32
+
 #include "Mutex.h"
 
 namespace Util
@@ -58,3 +60,5 @@ namespace Util
     target = NULL;
   }
 }
+
+#endif

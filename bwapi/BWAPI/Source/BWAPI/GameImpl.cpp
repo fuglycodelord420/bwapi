@@ -213,7 +213,7 @@ namespace BWAPI
   bool GameImpl::isFlagEnabled(int flag) const
   {
     // Check if index is valid
-    if ( flag < 0 || flag >= BWAPI::Flag::Max ) 
+    if ( flag < 0 || flag >= BWAPI::Flag::Max )
       return false;
 
     // Make completeMapInfo appear true if the match has ended
@@ -242,12 +242,12 @@ namespace BWAPI
       this->setLastError(Errors::Invalid_Parameter);
       return;
     }
-    
+
     // check if tournament will allow the call
     if ( !this->tournamentCheck(Tournament::EnableFlag, &flag) )
       return;
 
-    // Modify flag state 
+    // Modify flag state
     this->flags[flag] = true;
     if ( !this->hTournamentModule )
     {
@@ -312,7 +312,7 @@ namespace BWAPI
   {
     Unit pBestUnit = nullptr;
     Position rad(radius,radius);
-    
+
     Position topLeft(center - rad);
     Position botRight(center + rad);
 
@@ -331,7 +331,7 @@ namespace BWAPI
                                                   if ( pBestUnit == nullptr )
                                                     pBestUnit = u;
                                                   else
-                                                    pBestUnit = best(pBestUnit,u); 
+                                                    pBestUnit = best(pBestUnit,u);
                                                 } } );
 
     return pBestUnit;
@@ -415,14 +415,14 @@ namespace BWAPI
     // nogui & safety
     //if ( !data->hasGUI ) return;
     if ( !format ) return;
-    
+
     // Expand format into buffer
     char buffer[512];
     VSNPrintf(buffer, format, arg);
 
     if ( !this->tournamentCheck(Tournament::Printf, buffer) )
       return;
-    
+
     bwgame.printText(buffer);
 
     // Dispatch message using existing Storm library function (lobby+game)
@@ -435,7 +435,7 @@ namespace BWAPI
   {
     // safety
     if ( !format ) return;
-    
+
     // Expand format and store in buffer
     char buffer[80]; // Use maximum size of 80 since there is a hardcoded limit in Broodwar of 80 characters
     VSNPrintf(buffer, format, arg);
@@ -535,13 +535,13 @@ namespace BWAPI
   void GameImpl::_startGame()
   {
     throw std::runtime_error("_startGame fixme");
-    // Starts the game as a lobby host 
+    // Starts the game as a lobby host
     //bwgame.QueueCommand<BW::Orders::StartGame>();
   }
   //----------------------------------------------- PAUSE GAME -----------------------------------------------
   void GameImpl::pauseGame()
   {
-    // Pauses the game 
+    // Pauses the game
     this->setLastError();
     if ( !this->tournamentCheck(Tournament::PauseGame) )
       return;
@@ -550,7 +550,7 @@ namespace BWAPI
   //---------------------------------------------- RESUME GAME -----------------------------------------------
   void GameImpl::resumeGame()
   {
-    // Resumes the game 
+    // Resumes the game
     this->setLastError();
     if ( !this->tournamentCheck(Tournament::ResumeGame) )
       return;
@@ -559,7 +559,7 @@ namespace BWAPI
   //---------------------------------------------- LEAVE GAME ------------------------------------------------
   void GameImpl::leaveGame()
   {
-    // Leaves the current game. Moves directly to the post-game score screen 
+    // Leaves the current game. Moves directly to the post-game score screen
     this->setLastError();
     if ( !this->tournamentCheck(Tournament::LeaveGame) )
       return;
@@ -568,7 +568,7 @@ namespace BWAPI
   //--------------------------------------------- RESTART GAME -----------------------------------------------
   void GameImpl::restartGame()
   {
-    // Restarts the current match 
+    // Restarts the current match
     // Does not work on Battle.net
     if ( this->isMultiplayer() )
     {
@@ -582,14 +582,14 @@ namespace BWAPI
   //--------------------------------------------- SET ALLIANCE -----------------------------------------------
   bool GameImpl::setAlliance(BWAPI::Player player, bool allied, bool alliedVictory)
   {
-    // Set the current player's alliance status 
+    // Set the current player's alliance status
     if ( !BWAPIPlayer || isReplay() || !player || player == BWAPIPlayer )
       return this->setLastError(Errors::Invalid_Parameter);
 
     u32 alliance = 0;
     for (int i = 0; i < BW::PLAYER_COUNT; ++i)
       alliance |= (bwgame.getPlayer(BWAPIPlayer->getIndex()).playerAlliances(i) & 3) << (i*2);
-    
+
     u8 newAlliance = allied ? (alliedVictory ? 2 : 1) : 0;
     if ( allied )
       alliance |= newAlliance << ( static_cast<PlayerImpl*>(player)->getIndex()*2);
@@ -630,7 +630,7 @@ namespace BWAPI
   //--------------------------------------------------- GAME SPEED -------------------------------------------
   void GameImpl::setLocalSpeed(int speed)
   {
-    // Sets the frame rate of the client 
+    // Sets the frame rate of the client
     if (!this->tournamentCheck(Tournament::SetLocalSpeed, &speed) ||
       this->speedOverride != std::numeric_limits<decltype(this->speedOverride)>::min()) return;
 

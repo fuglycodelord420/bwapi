@@ -1,4 +1,5 @@
 #pragma once
+#ifdef UNDEFINED_BEHAVIOR_VOIDSTAR_TO_INT_OFFSET_THEN_BACK
 ////////////////////////////////////////////////////////////////////////
 //  Boundaries of a non typed memory block                            //
 //                                                                    //
@@ -136,3 +137,4 @@ namespace Util
     static int _limit(int a, int low, int hi);
   };
 }
+#endif

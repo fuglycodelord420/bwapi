@@ -1,4 +1,4 @@
-#include "RegionImpl.h"
+#include "BWAPI/RegionImpl.h"
 
 namespace BWAPI
 {

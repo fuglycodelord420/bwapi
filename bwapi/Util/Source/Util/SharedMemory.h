@@ -1,4 +1,5 @@
 #pragma once
+#ifdef _WIN32
 /***********************************************************************
  *  SharedMemory is a memory buffer which can be shared with other
  *  processes
@@ -90,3 +91,5 @@ namespace Util
     //----------------------- ------------------------------------------
   };
 }
+
+#endif

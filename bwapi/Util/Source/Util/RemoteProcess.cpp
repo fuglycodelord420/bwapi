@@ -1,3 +1,5 @@
+#ifdef _WIN32
+
 #include "RemoteProcess.h"
 
 namespace Util
@@ -21,7 +23,7 @@ namespace Util
   bool RemoteProcess::acquire(RemoteProcessID remoteProcessID, bool moreAccess)
   {
     this->processHandle = OpenProcess(
-      moreAccess ? 
+      moreAccess ?
       PROCESS_DUP_HANDLE | PROCESS_QUERY_INFORMATION :
       PROCESS_DUP_HANDLE,
       NULL,
@@ -72,3 +74,5 @@ namespace Util
     return this->processHandle != INVALID_HANDLE_VALUE;
   }
 }
+
+#endif

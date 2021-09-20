@@ -1,5 +1,5 @@
 #include <BWAPI.h>
-#include "BulletImpl.h"
+#include "BWAPI/BulletImpl.h"
 
 namespace BWAPI
 {

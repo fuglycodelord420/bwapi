@@ -1,4 +1,4 @@
-#include "PlayerImpl.h"
+#include "BWAPI/PlayerImpl.h"
 
 #include <BWAPI/Color.h>
 #include <BWAPI/WeaponType.h>

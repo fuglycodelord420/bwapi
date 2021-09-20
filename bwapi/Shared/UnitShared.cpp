@@ -1,6 +1,6 @@
 #include <BWAPI.h>
 #include <BWAPI/Client/UnitData.h>
-#include "UnitImpl.h"
+#include "BWAPI/UnitImpl.h"
 #include <Templates.h>
 
 namespace BWAPI
@@ -472,7 +472,7 @@ namespace BWAPI
     //if BWOrder is MoveToGas, Harvest1, or Harvest2 we need to do some additional checks to make sure the unit is really gathering
     Unit targ = getTarget();
     if ( targ &&
-        targ->exists() && 
+        targ->exists() &&
         targ->isCompleted() &&
         targ->getPlayer() == getPlayer() &&
         targ->getType() != UnitTypes::Resource_Vespene_Geyser &&
@@ -480,7 +480,7 @@ namespace BWAPI
       return true;
     targ = getOrderTarget();
     if ( targ &&
-        targ->exists() && 
+        targ->exists() &&
         targ->isCompleted() &&
         targ->getPlayer() == getPlayer() &&
         targ->getType() != UnitTypes::Resource_Vespene_Geyser &&

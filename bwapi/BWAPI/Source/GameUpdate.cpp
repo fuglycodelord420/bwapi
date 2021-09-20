@@ -1,16 +1,16 @@
-#include "GameImpl.h"
+#include "BWAPI/GameImpl.h"
 
 #include <Util/StringUtil.h>
 
-#include "PlayerImpl.h"
+#include "BWAPI/PlayerImpl.h"
 
 #include "Config.h"
 
 #include <BW/Constants.h>
 #include <BW/OrderTypes.h>
 
-#include "../../../svnrev.h"
-#include "../../../Debug.h"
+#include "../../svnrev.h"
+#include "../../Debug.h"
 
 #ifdef _WIN32
 #include <windows.h>

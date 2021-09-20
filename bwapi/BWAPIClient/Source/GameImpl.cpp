@@ -30,7 +30,7 @@ namespace BWAPI
       unitVector.push_back(UnitImpl(i));
     for(int i = 0; i < 100; ++i)
       bulletVector.push_back(BulletImpl(i));
-    
+
     inGame = false;
   }
   int GameImpl::addShape(const BWAPIC::Shape &s)
@@ -140,13 +140,13 @@ namespace BWAPI
   {
     // GameImpl events
     this->updateEvents();
-    
+
     // UnitImpl events
     for(Unit u : this->accessibleUnits)
     {
       u->exists() ? u->updateEvents() : u->interfaceEvents.clear();
     }
-    
+
     // ForceImpl events
     for(Force f : this->forces)
       f->updateEvents();
@@ -459,14 +459,14 @@ namespace BWAPI
   //----------------------------------------------- IS FLAG ENABLED ------------------------------------------
   bool GameImpl::isFlagEnabled(int flag) const
   {
-    if ( flag < 0 || flag >= BWAPI::Flag::Max ) 
+    if ( flag < 0 || flag >= BWAPI::Flag::Max )
       return false;
     return data->flags[flag];
   }
   //----------------------------------------------- ENABLE FLAG ----------------------------------------------
   void GameImpl::enableFlag(int flag)
   {
-    if ( flag < 0 || flag >= BWAPI::Flag::Max ) 
+    if ( flag < 0 || flag >= BWAPI::Flag::Max )
       return;
     if ( data->flags[flag] == false )
       addCommand(BWAPIC::Command(BWAPIC::CommandType::EnableFlag, flag));
@@ -517,7 +517,7 @@ namespace BWAPI
   {
     Unit pBestUnit = nullptr;
     Position rad(radius,radius);
-    
+
     Position topLeft(center - rad);
     Position botRight(center + rad);
 
@@ -536,7 +536,7 @@ namespace BWAPI
                                                              if ( pBestUnit == nullptr )
                                                                pBestUnit = u;
                                                              else
-                                                               pBestUnit = best(pBestUnit,u); 
+                                                               pBestUnit = best(pBestUnit,u);
                                                            } } );
 
     return pBestUnit;
@@ -642,7 +642,7 @@ namespace BWAPI
   bool GameImpl::isMultiplayer() const
   {
     return data->isMultiplayer;
-  }  
+  }
   //--------------------------------------------- IS BATTLE NET ----------------------------------------------
   bool GameImpl::isBattleNet() const
   {
@@ -701,7 +701,7 @@ namespace BWAPI
 
     if ( !isReplay() && (!self() || player == self()) )
       return setLastError(Errors::Invalid_Parameter);
-    
+
     addCommand(BWAPIC::Command(BWAPIC::CommandType::SetVision, player->getID(), enabled ? 1 : 0));
     return setLastError();
   }
@@ -925,9 +925,9 @@ namespace BWAPI
       const int index = idx & 0x1FFF;
       if (index >= std::extent<decltype(data->mapSplitTilesMiniTileMask)>::value)
         return nullptr;
-      
+
       unsigned short miniTileMask = data->mapSplitTilesMiniTileMask[index];
-      
+
       if (index >= std::extent<decltype(data->mapSplitTilesRegion1)>::value)
         return nullptr;
 

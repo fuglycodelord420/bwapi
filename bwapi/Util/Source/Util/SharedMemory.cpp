@@ -1,3 +1,4 @@
+#ifdef _WIN32
 #include "SharedMemory.h"
 
 namespace Util
@@ -119,3 +120,4 @@ namespace Util
   }
   //----------------------- --------------------------------------------
 }
+#endif

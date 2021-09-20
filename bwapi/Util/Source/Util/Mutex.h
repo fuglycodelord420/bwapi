@@ -1,4 +1,5 @@
 #pragma once
+#ifdef _WIN32
 
 //
 //  A windows mutex or named mutex object
@@ -46,3 +47,4 @@ namespace Util
     };
   };
 }
+#endif

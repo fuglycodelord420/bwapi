@@ -221,19 +221,19 @@ void AutoMenuManager::startGame()
   bool isAutoSingle = this->autoMenuMode == "SINGLE_PLAYER";
   //bool isCreating = !this->autoMenuMapPath.empty();
   //bool isJoining = !this->autoMenuGameName.empty();
-  
+
   std::string name = this->autoMenuCharacterName;
   if (name == "FIRST")
     name = "bwapi"; // this name will be used if there are no existing characters
   else if (name.empty())
     name = "empty";
-  
+
   Broodwar->setCharacterName(name);
-  
+
   //if (!Broodwar->setMap(this->lastMapGen)) throw std::runtime_error("AutoMenuManager::createGame: setMap failed :(");
   BWAPI::BroodwarImpl.bwgame.setMapFileName(this->lastMapGen);
   Broodwar->setGameType(GameType::getType(this->autoMenuGameType));
-  
+
   if (isAutoSingle) {
     Broodwar->createSinglePlayerGame([&]() {
       if (Broodwar->isReplay())
@@ -279,7 +279,7 @@ void AutoMenuManager::startGame()
     });
 
   } else {
-    
+
     Broodwar->createMultiPlayerGame([&]() {
       if (Broodwar->isReplay())
       {
