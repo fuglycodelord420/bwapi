@@ -379,7 +379,7 @@ struct game_setup_helper_t {
 #endif
   > sync_funcs {std::in_place_type<bwgame::sync_functions<>>, st, action_st, sync_st, std::get<bwgame::sync_server_noop>(server)};
 
-  bwgame::a_vector<uint8_t> scenario_chk_data;
+  bwgame::a_vector<uint8_t> scenario_chk_data = {};
 
   std::string env(std::string name, std::string def) {
     auto i = vars.override_env_var.find(name);
@@ -1090,7 +1090,7 @@ int Game::screenHeight() const
   return 0;
 }
 
-void Game::setScreenPosition(int x, int y)
+void Game::setScreenPosition(int, int)
 {
 
 }
@@ -1141,12 +1141,12 @@ void Game::setGameSpeedModifiers(int n, int value)
   impl->vars.game_speeds_frame_times.at(n) = value;
 }
 
-void Game::setAltSpeedModifiers(int n, int value)
+void Game::setAltSpeedModifiers([[maybe_unused]] int n, [[maybe_unused]] int value)
 {
 
 }
 
-void Game::setFrameSkip(int value)
+void Game::setFrameSkip(int)
 {
 
 }
@@ -1743,7 +1743,7 @@ int Player::suppliesAvailable(int n) const
   return impl->funcs.st.supply_available.at(owner).at(n).raw_value;
 }
 
-int Player::suppliesMax(int n) const
+int Player::suppliesMax(int) const
 {
   return 400; // fixme
 }
@@ -1753,12 +1753,12 @@ int Player::suppliesUsed(int n) const
   return impl->funcs.st.supply_used.at(owner).at(n).raw_value;
 }
 
-int Player::unitCountsDead(int n) const
+int Player::unitCountsDead(int) const
 {
   return 0; // fixme
 }
 
-int Player::unitCountsKilled(int n) const
+int Player::unitCountsKilled(int) const
 {
   return 0; // fixme
 }
